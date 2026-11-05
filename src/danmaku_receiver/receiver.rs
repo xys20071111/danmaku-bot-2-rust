@@ -1,12 +1,12 @@
 use crate::{
     config::Credential,
     danmaku_receiver::{
+        callback_trait::DanmakuEventCallback,
         danmaku_packet::{packet_extractor, packet_generator, packet_payload_extactor},
         get_cookie_value::get_cookie_value,
     },
 };
-use anyhow::{self, bail};
-use async_trait::async_trait;
+use anyhow::{self, Result, bail};
 use futures_util::{SinkExt, StreamExt};
 use reqwest::Url;
 use serde_json::{Value, json};
@@ -21,24 +21,6 @@ use crate::danmaku_receiver::app_sign::app_sign;
 
 static ROOM_INFO_BASE_URL: &str =
     "https://api.live.bilibili.com/xlive/app-room/v1/index/getDanmuInfo";
-
-impl Debug for Credential {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "key: {}\ncookie: {}\nuid: {}\n",
-            self.access_key, self.cookies, self.uid
-        )
-    }
-}
-
-#[async_trait]
-pub trait DanmakuEventCallback: Send + 'static {
-    async fn on_connect(&self);
-    async fn on_disconnect(&self);
-    // TODO: 完善函数定义，得把弹幕事件的信息传进去
-    async fn on_danmaku_event(&self, msg: Vec<Value>);
-}
 
 #[derive(Debug)]
 pub struct DanmakuReceiver;
@@ -158,7 +140,7 @@ impl DanmakuReceiver {
                                     Ok(val) => val,
                                     Err(e) => bail!("{}", e),
                                 };
-                                callback.on_danmaku_event(result).await
+                                let _ = callback.on_danmaku_event(result).await;
                             }
                             _ => eprintln!("[{}] Unsupported packet protocol.", room_id),
                         }
