@@ -1,24 +1,24 @@
 use crate::{
     config::{Credential, ProgramConfig},
+    danmaku_handler::DamnakuHandler,
     danmaku_receiver::receiver::DanmakuReceiver,
     plugin::PluginManager,
-    ui::{handler::DanmakuEventForUI, interface::MainInterface},
 };
-use anyhow::{self};
+use anyhow::{Result, bail};
 use clap::{Command, arg};
-use gpui::{App, AppContext, Bounds, WindowBounds, WindowOptions, px, size};
+// use gpui::{App, AppContext, Bounds, WindowBounds, WindowOptions, px, size};
 use serde_json::Value;
 use std::{fs::File, io::Read, time::Duration};
 use tokio::sync::mpsc;
 
 mod config;
+mod danmaku_handler;
 mod danmaku_receiver;
 mod plugin;
 mod search_param;
-mod ui;
 
 #[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
+async fn main() -> Result<()> {
     let cmd = Command::new("Danmaku bot")
         .arg(arg!(-c --config <FILE> "Program config file.").required(true))
         .arg(arg!(-u --ui "Use GUI."))
@@ -37,11 +37,8 @@ async fn main() -> Result<(), anyhow::Error> {
     };
     let mut plugin_manager = PluginManager::new();
     let mut join_handlers: Vec<_> = Vec::new();
-    let (tx, mut rx) = mpsc::channel::<Vec<Value>>(32);
-    let handler = match cmd.get_flag("ui") {
-        true => DanmakuEventForUI { send: tx },
-        false => panic!("Unimplemented no UI mode."),
-    };
+    let (tx, rx) = mpsc::channel::<Value>(32);
+    let handler = DamnakuHandler::new(tx);
     let _ = plugin_manager.run_plugins(rx).await;
     for room in config.rooms.iter() {
         let cred = cred.clone();
@@ -57,17 +54,9 @@ async fn main() -> Result<(), anyhow::Error> {
         });
         join_handlers.push(job);
     }
-    // match tokio::signal::ctrl_c().await {
-    //     Err(_) => bail!("Cannot listen signal SIGINT"),
-    //     Ok(_) => println!("Exitting..."),
-    // }
-    gpui_ce_platform::application().run(|cx: &mut App| {
-        let bounds = Bounds::centered(None, size(px(650.), px(900.)), cx);
-        cx.open_window(
-            WindowOptions::new().window_bounds(Some(WindowBounds::Windowed(bounds))),
-            |_, cx| cx.new(|_| MainInterface { count: 0 }),
-        )
-        .expect("Failed to open window");
-    });
+    match tokio::signal::ctrl_c().await {
+        Err(_) => bail!("Cannot listen signal SIGINT"),
+        Ok(_) => println!("Exitting..."),
+    }
     Ok(())
 }

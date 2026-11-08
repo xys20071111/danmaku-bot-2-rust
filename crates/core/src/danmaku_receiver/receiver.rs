@@ -140,6 +140,24 @@ impl DanmakuReceiver {
                                     Ok(val) => val,
                                     Err(e) => bail!("{}", e),
                                 };
+                                let result: Vec<Value> = result
+                                    .iter()
+                                    .map(|msg| {
+                                        if msg["cmd"] == "DANMU_MSG" {
+                                            json!({
+                                                "room": room_id,
+                                                "cmd": msg["cmd"],
+                                                "data": msg["info"]
+                                            })
+                                        } else {
+                                            json!({
+                                                "room": room_id,
+                                                "cmd": msg["cmd"],
+                                                "data": msg["data"]
+                                            })
+                                        }
+                                    })
+                                    .collect();
                                 let _ = callback.on_danmaku_event(result).await;
                             }
                             _ => eprintln!("[{}] Unsupported packet protocol.", room_id),
