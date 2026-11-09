@@ -13,9 +13,9 @@ use tokio::{
 
 #[derive(Deserialize)]
 struct PluginMetadata {
-    author: String,
+    // author: String,
     name: String,
-    license: String,
+    // license: String,
     main_entry: String,
 }
 

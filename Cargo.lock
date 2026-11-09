@@ -1181,6 +1181,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "config-converter"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "serde_json",
+]
+
+[[package]]
 name = "console_error_panic_hook"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3663,6 +3671,17 @@ name = "litrs"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4744e383959f0db86ede514b809b1c53251889093803c05267acc7d4e7030d70"
+
+[[package]]
+name = "live-start-notify-backend-ntfy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
 
 [[package]]
 name = "lock_api"

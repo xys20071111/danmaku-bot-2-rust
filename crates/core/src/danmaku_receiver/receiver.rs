@@ -80,7 +80,7 @@ impl DanmakuReceiver {
         tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
                 if let Err(e) = send.send(msg).await {
-                    eprintln!("Failed to send ws message: {:?}", e);
+                    eprintln!("[{}] Failed to send ws message: {:?}", room_id, e);
                     break;
                 }
             }
@@ -110,7 +110,7 @@ impl DanmakuReceiver {
                     3 => {}
                     // 认证包回复，认证通过，启动心跳
                     8 => {
-                        println!("{} passed the auth", room_id);
+                        println!("[{}] passed the auth", room_id);
                         let tx_clone = tx.clone();
                         tokio::spawn(async move {
                             let mut timer = tokio::time::interval(Duration::from_secs(30));
@@ -131,8 +131,8 @@ impl DanmakuReceiver {
                             0 => {
                                 // 对我来说大多没用，先留下处理逻辑吧
                                 let payload = &String::from_utf8(payload).unwrap();
-                                let _ = serde_json::from_str::<Value>(payload).unwrap();
-                                // callback.on_danmaku_event(result).await;
+                                let result = serde_json::from_str::<Value>(payload).unwrap();
+                                let _ = callback.on_danmaku_event(vec![result]).await;
                             }
                             // 经Brotli压缩的批量弹幕数据
                             3 => {
