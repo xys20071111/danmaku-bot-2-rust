@@ -53,6 +53,8 @@ async fn main() -> Result<()> {
             }
         });
         join_handlers.push(job);
+        // 保险起见，加个延迟
+        tokio::time::sleep(Duration::from_secs(5)).await;
     }
     match tokio::signal::ctrl_c().await {
         Err(_) => bail!("Cannot listen signal SIGINT"),

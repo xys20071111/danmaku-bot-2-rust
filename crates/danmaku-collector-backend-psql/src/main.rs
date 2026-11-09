@@ -4,12 +4,16 @@ use std::{
 };
 
 use anyhow::{Result, bail};
+use base64::prelude::*;
 use postgres::{Client, NoTls};
+use prost::Message;
 use serde_json::{Value, json};
 
 use crate::{config::Config, msg_parse_result::MsgParseResult};
+use dm_proto::gift;
 
 mod config;
+mod dm_proto;
 mod msg_parse_result;
 
 fn main() -> Result<()> {
@@ -72,6 +76,7 @@ fn main() -> Result<()> {
         };
         let msg: MsgParseResult = match msg["cmd"].as_str().unwrap() {
             "DANMU_MSG" => {
+                println!("aaaaaaaaaaaa");
                 let mut result = MsgParseResult::default();
                 result.event_type = String::from("DANMAKU");
                 if !msg["data"][3].is_null() {
@@ -96,20 +101,53 @@ fn main() -> Result<()> {
 
                 result
             }
-            "SEND_GIFT" => {
+            "SEND_GIFT_V2" => {
                 let mut result = MsgParseResult::default();
-                result.medal_level = msg["data"]["medal_info"]["medal_level"].as_i64().unwrap();
-                result.medal_owner = msg["data"]["medal_info"]["target_id"].as_i64().unwrap();
-                result.medal_name =
-                    String::from(msg["data"]["medal_info"]["medal_name"].as_str().unwrap());
-                result.uid = msg["data"]["uid"].as_i64().unwrap();
-                result.nickname = String::from(msg["data"]["uname"].as_str().unwrap());
-                result.event_type = String::from("GIFT");
+                // result.medal_level = msg["data"]["medal_info"]["medal_level"].as_i64().unwrap();
+                // result.medal_owner = msg["data"]["medal_info"]["target_id"].as_i64().unwrap();
+                // result.medal_name =
+                //     String::from(msg["data"]["medal_info"]["medal_name"].as_str().unwrap());
+                // result.uid = msg["data"]["uid"].as_i64().unwrap();
+                // result.nickname = String::from(msg["data"]["uname"].as_str().unwrap());
+                // result.event_type = String::from("GIFT");
+                // result.extra_data = json!({
+                //     "count": msg["data"]["super_gift_num"],
+                //     "name": msg["data"]["giftName"],
+                //     "totalPrice": msg["data"]["price"].as_f64().unwrap() / 1000f64 * msg["data"]["super_gift_num"].as_f64().unwrap()
+                // });
+                let pb_data = String::from(msg["data"]["pb"].as_str().unwrap());
+                let pb_data = BASE64_STANDARD.decode(pb_data).unwrap();
+                let pb_data = gift::Gift::decode(pb_data.as_slice()).unwrap();
+                let medal = match pb_data.medal {
+                    Some(val) => match val.medal_info {
+                        Some(medal) => medal,
+                        None => gift::MedalInfo::default(),
+                    },
+                    None => gift::MedalInfo::default(),
+                };
+                let gift = match pb_data.info {
+                    Some(val) => val,
+                    None => {
+                        eprintln!(
+                            "[DanmakuCollector] Got an impossible gift message. Cannot find gift info."
+                        );
+                        continue;
+                    }
+                };
+                // 粉丝牌
+                result.medal_level = medal.level;
+                result.medal_name = medal.name;
+                result.medal_owner = medal.owner;
+                // 送礼者信息
+                result.nickname = pb_data.nickname;
+                result.uid = pb_data.uid;
+                // 礼物信息
                 result.extra_data = json!({
-                    "count": msg["data"]["super_gift_num"],
-                    "name": msg["data"]["giftName"],
-                    "totalPrice": msg["data"]["price"].as_f64().unwrap() / 1000f64 * msg["data"]["super_gift_num"].as_f64().unwrap()
+                    "count": gift.count,
+                    "name": gift.name,
+                    "totalPrice": gift.paid_price as f32 * gift.count as f32 / 1000f32
                 });
+                result.event_type = String::from("GIFT");
                 result
             }
             "GUARD_BUY" => {
@@ -184,7 +222,7 @@ fn main() -> Result<()> {
             }
             _ => continue,
         };
-        match psql.execute(
+        match psql.query(
             &format!(
                 "INSERT INTO {table}(room,type,uid,nickname,medal,data) VALUES ($1,$2,$3,$4,$5,$6)"
             ),
