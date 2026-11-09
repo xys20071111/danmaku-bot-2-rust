@@ -65,7 +65,11 @@ fn main() -> Result<()> {
         let mut data = String::new();
         let _ = io::stdin().read_line(&mut data);
         let msg = serde_json::from_str::<Value>(&data).unwrap();
-        let room = msg["room"].as_i64().unwrap();
+        let room = match msg["room"].as_i64() {
+            Some(val) => val,
+            // 这就是传过来的没用的信息，大多数是不用继续出现在推荐列表里的房间。可以直接continue
+            None => continue,
+        };
         let msg: MsgParseResult = match msg["cmd"].as_str().unwrap() {
             "DANMU_MSG" => {
                 let mut result = MsgParseResult::default();

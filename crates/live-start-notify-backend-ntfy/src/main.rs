@@ -28,7 +28,10 @@ async fn main() -> Result<()> {
         let mut data = String::new();
         let _ = io::stdin().read_line(&mut data);
         let msg = serde_json::from_str::<Value>(&data).unwrap();
-        let room_id = msg["room"].as_i64().unwrap();
+        let room_id = match msg["room"].as_i64() {
+            Some(val) => val,
+            None => continue,
+        };
         if msg["cmd"] == "LIVE" || msg["cmd"] == "PREPARING" {
             let req = match reqwest::get(format!(
                 "https://api.live.bilibili.com/xlive/web-room/v1/index/getRoomBaseInfo?room_ids={}&req_biz=BiLive",
@@ -57,7 +60,7 @@ async fn main() -> Result<()> {
                     _ => continue,
                 };
                 let req = client
-                    .post(format!("https://{}/{}", config.server, config.topic))
+                    .post(&config.url)
                     .body(format!("{}", status))
                     .header("Authorization", format!("Bearer {}", config.token))
                     .build()
