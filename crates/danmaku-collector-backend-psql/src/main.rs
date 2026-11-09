@@ -76,7 +76,6 @@ fn main() -> Result<()> {
         };
         let msg: MsgParseResult = match msg["cmd"].as_str().unwrap() {
             "DANMU_MSG" => {
-                println!("aaaaaaaaaaaa");
                 let mut result = MsgParseResult::default();
                 result.event_type = String::from("DANMAKU");
                 if !msg["data"][3].is_null() {
