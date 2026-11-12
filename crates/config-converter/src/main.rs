@@ -44,7 +44,11 @@ fn main() {
     let _ = output_file
         .write(
             json!({
-                "credential": input["verify"],
+                "credential": {
+                    "access_keys": input["verify"]["accessKey"],
+                    "cookies": input["verify"]["cookie"],
+                    "uid": input["verify"]["uid"]
+                },
                 "rooms": rooms
             })
             .to_string()
