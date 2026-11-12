@@ -1,11 +1,7 @@
 syntax = "proto3";
 package dm_proto.gift;
 
-message MedalInfo {
-    string name = 1;
-    int64 level = 2;
-    int64 owner = 10;
-}
+import "user_info.proto";
 
 message GiftInfo {
     string name = 2;
@@ -14,14 +10,9 @@ message GiftInfo {
     int32 paid_price = 6;
     string type = 8;
 }
-
-message Medal {
-    MedalInfo medal_info = 3;
-}
-
 message Gift {
     int64 uid = 1;
     string nickname = 2;
     GiftInfo info = 10;
-    Medal medal = 15;
+    dm_proto.user_info.UserInfo user = 15;
 }

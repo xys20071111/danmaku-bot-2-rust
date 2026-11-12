@@ -21,7 +21,7 @@ mod search_param;
 async fn main() -> Result<()> {
     let cmd = Command::new("Danmaku bot")
         .arg(arg!(-c --config <FILE> "Program config file.").required(true))
-        .arg(arg!(-u --ui "Use GUI."))
+        .arg(arg!(-u --ui "Use GUI. (Now useless)"))
         .get_matches();
     let config: String = cmd.get_one::<String>("config").unwrap().to_owned();
     let mut config = File::open(config).expect("Cannot open config file.");
@@ -40,7 +40,12 @@ async fn main() -> Result<()> {
     let (tx, rx) = mpsc::channel::<Value>(32);
     let handler = DamnakuHandler::new(tx);
     let _ = plugin_manager.run_plugins(rx).await;
+    let mut opened_rooms: Vec<i64> = Vec::new();
     for room in config.rooms.iter() {
+        if opened_rooms.contains(room) {
+            println!("Already opened a receiver for {}, skipping...", room);
+            continue;
+        }
         let cred = cred.clone();
         let room = room.clone();
         let handler = handler.clone();
@@ -53,6 +58,7 @@ async fn main() -> Result<()> {
             }
         });
         join_handlers.push(job);
+        opened_rooms.push(room);
         // 保险起见，加个延迟
         tokio::time::sleep(Duration::from_secs(5)).await;
     }

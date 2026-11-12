@@ -28,9 +28,17 @@ fn main() {
     let mut rooms: Vec<i64> = Vec::new();
     for item in input["rooms"].as_array().unwrap() {
         if item.is_number() {
-            rooms.push(item.as_i64().unwrap());
+            let room_number = item.as_i64().unwrap();
+            if rooms.contains(&room_number) {
+                continue;
+            }
+            rooms.push(room_number);
         } else {
-            rooms.push(item["room_id"].as_i64().unwrap());
+            let room_number = item["room_id"].as_i64().unwrap();
+            if rooms.contains(&room_number) {
+                continue;
+            }
+            rooms.push(room_number);
         }
     }
     let _ = output_file

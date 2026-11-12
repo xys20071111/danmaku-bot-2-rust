@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     io::{self, Read},
+    process::exit,
 };
 
 use anyhow::{Result, bail};
@@ -9,8 +10,8 @@ use postgres::{Client, NoTls};
 use prost::Message;
 use serde_json::{Value, json};
 
-use crate::{config::Config, msg_parse_result::MsgParseResult};
-use dm_proto::gift;
+use crate::{config::Config, dm_proto::interact_word, msg_parse_result::MsgParseResult};
+use dm_proto::{gift, user_info};
 
 mod config;
 mod dm_proto;
@@ -100,29 +101,33 @@ fn main() -> Result<()> {
 
                 result
             }
+            "SEND_GIFT" => {
+                let mut result = MsgParseResult::default();
+                result.medal_level = msg["data"]["medal_info"]["medal_level"].as_i64().unwrap();
+                result.medal_owner = msg["data"]["medal_info"]["target_id"].as_i64().unwrap();
+                result.medal_name =
+                    String::from(msg["data"]["medal_info"]["medal_name"].as_str().unwrap());
+                result.uid = msg["data"]["uid"].as_i64().unwrap();
+                result.nickname = String::from(msg["data"]["uname"].as_str().unwrap());
+                result.event_type = String::from("GIFT");
+                result.extra_data = json!({
+                    "count": msg["data"]["super_gift_num"],
+                    "name": msg["data"]["giftName"],
+                    "totalPrice": msg["data"]["price"].as_f64().unwrap() / 1000f64 * msg["data"]["super_gift_num"].as_f64().unwrap()
+                });
+                result
+            }
             "SEND_GIFT_V2" => {
                 let mut result = MsgParseResult::default();
-                // result.medal_level = msg["data"]["medal_info"]["medal_level"].as_i64().unwrap();
-                // result.medal_owner = msg["data"]["medal_info"]["target_id"].as_i64().unwrap();
-                // result.medal_name =
-                //     String::from(msg["data"]["medal_info"]["medal_name"].as_str().unwrap());
-                // result.uid = msg["data"]["uid"].as_i64().unwrap();
-                // result.nickname = String::from(msg["data"]["uname"].as_str().unwrap());
-                // result.event_type = String::from("GIFT");
-                // result.extra_data = json!({
-                //     "count": msg["data"]["super_gift_num"],
-                //     "name": msg["data"]["giftName"],
-                //     "totalPrice": msg["data"]["price"].as_f64().unwrap() / 1000f64 * msg["data"]["super_gift_num"].as_f64().unwrap()
-                // });
                 let pb_data = String::from(msg["data"]["pb"].as_str().unwrap());
                 let pb_data = BASE64_STANDARD.decode(pb_data).unwrap();
                 let pb_data = gift::Gift::decode(pb_data.as_slice()).unwrap();
-                let medal = match pb_data.medal {
+                let medal = match pb_data.user {
                     Some(val) => match val.medal_info {
                         Some(medal) => medal,
-                        None => gift::MedalInfo::default(),
+                        None => user_info::MedalInfo::default(),
                     },
-                    None => gift::MedalInfo::default(),
+                    None => user_info::MedalInfo::default(),
                 };
                 let gift = match pb_data.info {
                     Some(val) => val,
@@ -209,6 +214,29 @@ fn main() -> Result<()> {
                 }
                 result
             }
+            "INTERACT_WORD_V2" => {
+                let mut result = MsgParseResult::default();
+                let pb_data = String::from(msg["data"]["pb"].as_str().unwrap());
+                let pb_data = BASE64_STANDARD.decode(pb_data).unwrap();
+                let pb_data = interact_word::InteractWord::decode(pb_data.as_slice()).unwrap();
+                let medal = match pb_data.user_info {
+                    Some(val) => match val.medal_info {
+                        Some(medal) => medal,
+                        None => user_info::MedalInfo::default(),
+                    },
+                    None => user_info::MedalInfo::default(),
+                };
+                result.nickname = pb_data.nickname;
+                result.uid = pb_data.uid;
+                result.event_type = String::from("EVENT");
+                result.medal_level = medal.level;
+                result.medal_name = medal.name;
+                result.medal_owner = medal.owner;
+                result.extra_data = json!({
+                  "type": 0
+                });
+                result
+            }
             "ROOM_BLOCK_MSG" => {
                 let mut result = MsgParseResult::default();
                 result.event_type = String::from("EVENT");
@@ -236,7 +264,8 @@ fn main() -> Result<()> {
         ) {
             Ok(_) => {}
             Err(e) => {
-                eprintln!("{:?}", e);
+                eprintln!("Failed to write database! Reason: {:?}\n Exiting...", e);
+                exit(1);
             }
         }
     }

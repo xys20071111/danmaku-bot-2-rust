@@ -5,7 +5,10 @@ members = [
 resolver = "3"
 
 
-[profile.dev.package]
-rustybuzz = { opt-level = 3 }
-taffy = { opt-level = 3 }
-ttf-parser = { opt-level = 3 }
+# [profile.dev.package]
+# rustybuzz = { opt-level = 3 }
+# taffy = { opt-level = 3 }
+# ttf-parser = { opt-level = 3 }
+
+[alias]
+build_aarch64 = "build --release --target aarch64-unknown-linux-gnu"

@@ -1,0 +1,10 @@
+syntax = "proto3";
+package dm_proto.interact_word;
+
+import "user_info.proto";
+
+message InteractWord {
+    int64 uid = 1;
+    string nickname = 2;
+    dm_proto.user_info.UserInfo user_info = 22;
+}
