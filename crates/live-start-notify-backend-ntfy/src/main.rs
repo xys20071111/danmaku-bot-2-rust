@@ -49,7 +49,29 @@ async fn main() -> Result<()> {
                     room_info.to_string()
                 )
             }
-            for room in room_info["data"]["by_room_ids"].as_array().unwrap() {
+            let rooms = match room_info["data"]["by_room_ids"].as_array() {
+                None => {
+                    let status = match msg["cmd"].as_str().unwrap() {
+                        "LIVE" => format!("{} 开播啦！", room_id),
+                        "PREPARING" => format!("{} 下播啦！", room_id),
+                        _ => continue,
+                    };
+                    let req = client
+                        .post(&config.url)
+                        .body(format!("{}", status))
+                        .header("Authorization", format!("Bearer {}", config.token))
+                        .build()
+                        .unwrap();
+                    let _ = client.execute(req).await;
+                    eprintln!(
+                        "[LiveStartNotifier] Live start but can't get any info from bilibili! room: {}",
+                        room_id
+                    );
+                    continue;
+                }
+                Some(val) => val,
+            };
+            for room in rooms {
                 let status = match msg["cmd"].as_str().unwrap() {
                     "LIVE" => format!(
                         "{} 开播啦！ {}",
