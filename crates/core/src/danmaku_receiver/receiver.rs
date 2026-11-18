@@ -4,6 +4,7 @@ use crate::{
         callback_trait::DanmakuEventCallback,
         danmaku_packet::{packet_extractor, packet_generator, packet_payload_extactor},
         get_cookie_value::get_cookie_value,
+        wbi_sign::wbi_sign,
     },
 };
 use anyhow::{self, Result, bail};
@@ -19,8 +20,10 @@ use tokio_tungstenite::connect_async;
 
 use crate::danmaku_receiver::app_sign::app_sign;
 
-static ROOM_INFO_BASE_URL: &str =
+static ROOM_INFO_APP_URL: &str =
     "https://api.live.bilibili.com/xlive/app-room/v1/index/getDanmuInfo";
+static ROOM_INFO_WEB_URL: &str =
+    "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo";
 
 #[derive(Debug)]
 pub struct DanmakuReceiver;
@@ -31,32 +34,58 @@ impl DanmakuReceiver {
         room_id: i64,
         callback: CB,
     ) -> Result<(), anyhow::Error> {
-        let room_info_pramas = vec![
-            (String::from("access_key"), String::from(&cred.access_key)),
-            (String::from("room_id"), String::from(&format!("{room_id}"))),
-            (String::from("type"), String::from(&format!("{}", 0))),
-            (
-                String::from("ts"),
-                String::from(&format!(
-                    "{}",
-                    time::SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs()
-                )),
-            ),
-        ];
-        let room_info_params = app_sign(
-            room_info_pramas,
-            "1d8b6e7d45233436",
-            "560c52ccd288fed045859ed18bffd973",
-        );
-        let client = reqwest::Client::new();
-        let url = Url::parse_with_params(ROOM_INFO_BASE_URL, room_info_params)
-            .expect("Cannot parse room info url. This shouldn't happened...");
+        let url = match cred.mode.as_str() {
+            "app" => {
+                let room_info_pramas = vec![
+                    (String::from("access_key"), String::from(&cred.access_key)),
+                    (String::from("room_id"), String::from(&format!("{room_id}"))),
+                    (String::from("type"), String::from("0")),
+                    (
+                        String::from("ts"),
+                        String::from(&format!(
+                            "{}",
+                            time::SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_secs()
+                        )),
+                    ),
+                ];
+                let room_info_params = app_sign(
+                    room_info_pramas,
+                    "1d8b6e7d45233436",
+                    "560c52ccd288fed045859ed18bffd973",
+                );
+                Url::parse_with_params(ROOM_INFO_APP_URL, room_info_params)
+                    .expect("Cannot parse room info url. This shouldn't happened...")
+            }
+            "wbi" => {
+                let room_info_pramas = vec![
+                    (String::from("id"), String::from(&format!("{room_id}"))),
+                    (String::from("type"), String::from("0")),
+                    (
+                        String::from("wts"),
+                        String::from(&format!(
+                            "{}",
+                            time::SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_secs()
+                        )),
+                    ),
+                ];
+                let room_info_params = wbi_sign(room_info_pramas).await;
+                Url::parse_with_params(ROOM_INFO_WEB_URL, room_info_params)
+                    .expect("Cannot parse room info url. This shouldn't happened...")
+            }
+            _ => panic!("Unsupported credential mode! Supported: [wbi, app]"),
+        };
         // println!("{}", url);
+        let client = reqwest::Client::new();
         let req = client
             .get(url)
+            .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36")
+            .header("Cookie", &cred.cookies)
             .send()
             .await
             .unwrap()
@@ -65,14 +94,12 @@ impl DanmakuReceiver {
             .unwrap();
         // println!("{}", req);
         if req["code"].as_i64().unwrap() != 0i64 {
+            eprintln!("{}", req);
             bail!("Failed to get danmaku host info.")
         }
-        let (ws, _) = connect_async(format!(
-            "wss://{}/sub",
-            req["data"]["host_list"][0]["host"].as_str().unwrap()
-        ))
-        .await
-        .unwrap();
+        let (ws, _) = connect_async("wss://broadcastlv.chat.bilibili.com:2245/sub")
+            .await
+            .unwrap();
         let (mut send, mut recv) = ws.split();
         let (tx, mut rx) = mpsc::channel::<tokio_tungstenite::tungstenite::Message>(32);
 
@@ -86,14 +113,15 @@ impl DanmakuReceiver {
             }
         });
         let payload = json!({
+            "uid": &cred.uid,
             "roomid": room_id,
-                      "protover": 3,
-                      "platform": "web",
-                      "uid": &cred.uid,
-                      "buvid": get_cookie_value(&cred.cookies, "buvid3").expect("Cannot get buvid3 from cookies."),
-                      "key": req["data"]["token"],
-                      "type": 2,
+            "protover": 3,
+            "buvid": get_cookie_value(&cred.cookies, "buvid3").expect("Cannot get buvid3 from cookies."),
+            "platform": "web",
+            "type": 2,
+            "key": req["data"]["token"]
         });
+        // println!("{}", payload);
         let msg = packet_generator(1, 7, payload.to_string().as_bytes()).await;
         let _ = tx.send(msg).await;
         while let Some(msg) = recv.next().await {

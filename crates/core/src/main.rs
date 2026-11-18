@@ -31,6 +31,7 @@ async fn main() -> Result<()> {
         .expect("Cannot parse config file. Check with your editor.");
     let cred = &config.credential;
     let cred = Credential {
+        mode: cred.mode.to_owned(),
         access_key: cred.access_key.to_owned(),
         cookies: cred.cookies.to_owned(),
         uid: cred.uid,
@@ -52,8 +53,16 @@ async fn main() -> Result<()> {
         let job = tokio::task::spawn(async move {
             loop {
                 let room = room.to_owned();
-                let _ = DanmakuReceiver::connect(cred.to_owned(), room, handler.clone()).await;
-                eprintln!("[{}] Disconnected from server. Reconnect after 30s.", room);
+                match DanmakuReceiver::connect(cred.to_owned(), room, handler.clone()).await {
+                    Err(e) => {
+                        eprintln!(
+                            "[{}] Disconnected from server. Reconnect after 30s. Reason: {}",
+                            room, e
+                        );
+                    }
+                    Ok(_) => eprintln!("[{}] Disconnected from server. Reconnect after 30s.", room),
+                };
+
                 tokio::time::sleep(Duration::from_secs(30)).await;
             }
         });

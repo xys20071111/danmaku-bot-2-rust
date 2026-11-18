@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Credential {
+    pub mode: String,
     pub access_key: String,
     pub cookies: String,
     pub uid: i64,
